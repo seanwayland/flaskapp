@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block body %}
+
+<h1>{{ the_title }}</h1>
+
+<img alt="Painting: Goddess Durga on a tiger's back" src="{{ url_for('static', filename='images/durga.jpg') }}">
+
+<ul>
+
+  <li><a href="{{ url_for('index') }}">Home page</a></li>
+</ul>
+
+
+{% endblock %}
