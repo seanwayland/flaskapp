@@ -1,15 +1,9 @@
-from flask import Flask, render_template
+from flask import Flask
 app = Flask(__name__)
 
-# two decorators, same function
 @app.route('/')
-@app.route('/index.html')
-def index():
-    return render_template('index.html', the_title='Sean Wayland Music')
+def hello_world():
+	return 'Hello, World!'
 
-@app.route('/myth.html')
-def myth():
-    return render_template('myth.html', the_title='Tiger in Myth and Legend')
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run()
