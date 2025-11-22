@@ -8,6 +8,8 @@
   368  sudo service apache2 restart
   369  history
 
+REPLACED BY certbot
+
 
 
 - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
