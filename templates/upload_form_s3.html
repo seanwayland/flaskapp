@@ -1,0 +1,63 @@
+<h2>Upload to S3</h2>
+
+<div id="status"></div>
+
+<input type="file" id="fileInput" />
+<button onclick="uploadFile()">Upload</button>
+
+<div style="margin-top: 15px; width: 300px; background: #ddd;">
+    <div id="progressBar" style="
+            height: 20px;
+            width: 0%;
+            background: green;
+            text-align: center;
+            color: white;
+        ">
+        0%
+    </div>
+</div>
+
+<script>
+function uploadFile() {
+    const file = document.getElementById("fileInput").files[0];
+    if (!file) {
+        document.getElementById("status").innerHTML = "<p style='color:red'>No file selected</p>";
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.open("POST", "/s3/upload", true);
+
+    // Progress event
+    xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            const bar = document.getElementById("progressBar");
+            bar.style.width = percent + "%";
+            bar.innerHTML = percent + "%";
+        }
+    });
+
+    // On complete
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            document.getElementById("status").innerHTML =
+                "<p style='color:green'>Upload complete!</p>";
+        } else {
+            document.getElementById("status").innerHTML =
+                "<p style='color:red'>Error: " + xhr.statusText + "</p>";
+        }
+    };
+
+    xhr.onerror = function() {
+        document.getElementById("status").innerHTML =
+            "<p style='color:red'>Upload failed.</p>";
+    };
+
+    xhr.send(formData);
+}
+</script>

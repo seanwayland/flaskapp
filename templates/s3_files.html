@@ -1,0 +1,10 @@
+<h2>S3 Files</h2>
+
+<ul>
+    {% for f in files %}
+        <li>
+            {{ f }} —
+            <a href="{{ url_for('s3_download', key=f) }}">Download</a>
+        </li>
+    {% endfor %}
+</ul>
