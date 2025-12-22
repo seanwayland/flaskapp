@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}New Performance{% endblock %}
+
+{% block content %}
+<h2>Add Music Performance</h2>
+
+<form method="post">
+    <label>Date:</label><br>
+    <input type="date" name="date" required><br><br>
+
+    <label>Location:</label><br>
+    <input type="text" name="location" required><br><br>
+
+    <label>Info:</label><br>
+    <textarea name="info" rows="4"></textarea><br><br>
+
+    <button type="submit">Save Performance</button>
+</form>
+{% endblock %}

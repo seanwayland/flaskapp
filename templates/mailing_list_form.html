@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}New Mailing List Entry{% endblock %}
+
+{% block content %}
+<h2>Add Mailing List User</h2>
+
+<form method="post">
+    <label>Name:</label><br>
+    <input type="text" name="name" required><br><br>
+
+    <label>Email:</label><br>
+    <input type="email" name="email" required><br><br>
+
+    <label>Location:</label><br>
+    <input type="text" name="location"><br><br>
+
+    <label>Updated:</label><br>
+    <input type="date" name="updated"><br><br>
+
+    <button type="submit">Add User</button>
+</form>
+{% endblock %}
