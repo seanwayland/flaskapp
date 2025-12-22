@@ -1,0 +1,15 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+LINKS BELOW FOR ZIPPED FOLDERS OF GIG CHARTS
+<div>
+<ul>
+    {% for filename in filenames -%}
+    <li><a href="{{ url_for('static', filename=filename) }}">{{ filename }}</a></li>
+    {% endfor -%}
+</ul>
+</div>
+
+</body>
+</html>
