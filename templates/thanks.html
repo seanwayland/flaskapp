@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Thanks for your submission</h2>
+<p>Submitted to: <strong>{{ source }}</strong></p>
+
+<table border="1">
+    <tr>
+        {% for key in rows[0].keys() %}
+            <th>{{ key }}</th>
+        {% endfor %}
+    </tr>
+    {% for row in rows[:10] %}
+    <tr>
+        {% for val in row.values() %}
+            <td>{{ val }}</td>
+        {% endfor %}
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

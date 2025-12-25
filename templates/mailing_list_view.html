@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Mailing List{% endblock %}
+{% block content %}
+<h2>Mailing List (showing first 50 rows)</h2>
+<a href="{{ url_for('download_mailing_list') }}">Download CSV</a>
+<table border="1" cellpadding="5" cellspacing="0">
+    <tr>
+        <th>Email</th>
+        <th>Name</th>
+        <th>Location</th>
+        <th>Info</th>
+    </tr>
+    {% for row in rows %}
+    <tr>
+        <td>{{ row[0] }}</td>
+        <td>{{ row[1] }}</td>
+        <td>{{ row[2] }}</td>
+        <td>{{ row[3] }}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endblock %}

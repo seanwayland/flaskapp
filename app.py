@@ -8,13 +8,40 @@ from flask import (
     session,
     url_for
 )
-
 import boto3
 from config import access_key_id, secret_access_key, S3_BUCKET
+import csv
+from io import TextIOWrapper
 from pathlib import Path
 import os
 import platform
+import psycopg2
 
+# -----------------------------
+# Determine if we should use the database
+# -----------------------------
+USE_DB = platform.system() != "Darwin"  # Skip DB on macOS
+
+def get_db():
+    if not USE_DB:
+        return None
+    return psycopg2.connect(
+        dbname="waylo_db",
+        user="waylo_user",
+        password=os.environ["WAYLO_DB_PASSWORD"],
+        host="localhost"
+    )
+
+def db_insert(query, params):
+    if not USE_DB:
+        print("Skipping DB insert:", query, params)
+        return
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(query, params)
+    conn.commit()
+    cur.close()
+    conn.close()
 
 # -----------------------------
 # AWS setup
@@ -34,11 +61,8 @@ app = Flask(__name__)
 # Load secrets
 # -----------------------------
 secrets_file = "/home/ubuntu/flaskapp/secrets.env"
-
 if platform.system() == "Darwin":  # macOS
     secrets_file = "/Users/seanwayland/Desktop/waylo_flask_again/secrets.env"
-else:  # assume Linux/EC2
-    secrets_file = "/home/ubuntu/flaskapp/secrets.env"
 
 with open(secrets_file) as f:
     for line in f:
@@ -48,18 +72,13 @@ with open(secrets_file) as f:
 
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
 UPLOAD_PASSWORD = os.environ["UPLOAD_PASSWORD"]
-
 UPLOAD_DIR = "/home/ubuntu/flaskapp/static/files"
 
-
 # =====================================================
-#  LOGIN (FIXED WITH REDIRECT TO ORIGINAL DESTINATION)
+#  LOGIN ROUTE
 # =====================================================
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_login():
-    """Password prompt with redirect support."""
-
-    # If user was sent here from another protected page, store return URL
     next_page = request.args.get("next")
     if next_page:
         session["next"] = next_page
@@ -67,37 +86,35 @@ def upload_login():
     if request.method == 'POST':
         if request.form.get("password") == UPLOAD_PASSWORD:
             session["upload_auth"] = True
-
-            # Return user to original destination if available
             redirect_target = session.pop("next", None)
-            if redirect_target:
-                return redirect(redirect_target)
-
-            # Fallback if no destination
-            return redirect(url_for("upload_form"))
-
+            return redirect(redirect_target or url_for("hello"))
         else:
             return render_template("upload_login.html", error="Incorrect password")
-
     return render_template("upload_login.html")
 
+# -----------------------------
+# Upload protection decorator
+# -----------------------------
+def require_upload_auth(f):
+    def wrapper(*args, **kwargs):
+        if not session.get("upload_auth"):
+            return redirect(url_for("upload_login", next=request.path))
+        return f(*args, **kwargs)
+    wrapper.__name__ = f.__name__
+    return wrapper
 
 # =====================================================
 #  S3 UPLOAD
 # =====================================================
 @app.route("/s3/upload", methods=["GET", "POST"])
+@require_upload_auth
 def s3_upload():
-    if not session.get("upload_auth"):
-        return redirect(url_for("upload_login", next=request.path))
-
     if request.method == "POST":
         if "file" not in request.files:
             return render_template("upload_form_s3.html", error="No file uploaded")
-
         file = request.files["file"]
         if file.filename == "":
             return render_template("upload_form_s3.html", error="No filename")
-
         try:
             s3.upload_fileobj(
                 file,
@@ -108,14 +125,13 @@ def s3_upload():
             return render_template("upload_form_s3.html", success="Uploaded to S3!")
         except Exception as e:
             return render_template("upload_form_s3.html", error=str(e))
-
     return render_template("upload_form_s3.html")
-
 
 # =====================================================
 #  S3 LIST FILES
 # =====================================================
 @app.route("/s3/files")
+@require_upload_auth
 def list_s3_files():
     try:
         response = s3.list_objects_v2(Bucket=S3_BUCKET)
@@ -124,11 +140,11 @@ def list_s3_files():
     except Exception as e:
         return str(e)
 
-
 # =====================================================
 #  S3 DOWNLOAD
 # =====================================================
 @app.route("/s3/download/<path:key>")
+@require_upload_auth
 def s3_download(key):
     try:
         url = s3.generate_presigned_url(
@@ -140,32 +156,23 @@ def s3_download(key):
     except Exception as e:
         return str(e)
 
-
-
 # =====================================================
 #  EC2 FILE UPLOAD (LOCAL)
 # =====================================================
 @app.route('/upload/form', methods=['GET', 'POST'])
+@require_upload_auth
 def upload_form():
-    if not session.get("upload_auth"):
-        return redirect(url_for("upload_login", next=request.path))
-
     if request.method == 'POST':
         if "file" not in request.files:
             return render_template("upload_form.html", error="No file part")
-
         file = request.files["file"]
         if file.filename == "":
             return render_template("upload_form.html", error="No file selected")
-
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         save_path = os.path.join(UPLOAD_DIR, file.filename)
         file.save(save_path)
-
         return render_template("upload_form.html", success="File uploaded!")
-
     return render_template("upload_form.html")
-
 
 # =====================================================
 #  MISC ROUTES
@@ -203,6 +210,7 @@ def return_plugins():
         return str(e)
 
 @app.route('/return_rail_mary_album/')
+@require_upload_auth
 def return_rail_mary():
     resource = "rail_mary_album_complete.zip"
     try:
@@ -228,38 +236,176 @@ def indexo():
     filenames = [x.relative_to(app.static_folder) for x in p.iterdir() if x.is_file()]
     return render_template('files.html', **locals())
 
-
-# -------- Performances --------
-
+# =====================================================
+# Performances
+# =====================================================
 @app.route("/performances/new", methods=["GET", "POST"])
+@require_upload_auth
 def new_performance():
     if request.method == "POST":
-        date = request.form["date"]
-        location = request.form["location"]
-        info = request.form["info"]
-        updated = request.form["updated"]
-
-        # Placeholder: later insert into Postgres
-        print("New performance:", date, location, info, updated)
-
-        return redirect(url_for("index"))
-
+        data = {
+            "date": request.form["date"],
+            "location": request.form["location"],
+            "info": request.form["info"],
+        }
+        db_insert(
+            "INSERT INTO performances (date, location, info) VALUES (%s, %s, %s)",
+            (data["date"], data["location"], data["info"])
+        )
+        return render_template(
+            "thanks.html",
+            source="/performances/new",
+            rows=[data]
+        )
     return render_template("performance_form.html")
 
-
-# -------- Mailing List --------
-
+# =====================================================
+# Mailing List (with CSV support)
+# =====================================================
 @app.route("/mailing-list/new", methods=["GET", "POST"])
+@require_upload_auth
 def new_mailing_list_entry():
     if request.method == "POST":
-        name = request.form["name"]
-        email = request.form["email"]
-        location = request.form["location"]
-        info = request.form["info"]
 
-        # Placeholder: later insert into Postgres
-        print("New mailing list entry:", name, email, location, info)
+        rows_to_show = []
 
-        return redirect(url_for("index"))
+        # ---- CSV UPLOAD PATH ----
+        if "csv_file" in request.files and request.files["csv_file"].filename:
+            csv_file = request.files["csv_file"]
+            if not csv_file.filename.lower().endswith(".csv"):
+                return render_template("mailing_list_form.html", error="Please upload a CSV file")
+            reader = csv.DictReader(TextIOWrapper(csv_file, encoding="utf-8"))
+            required_fields = {"name", "email", "location", "info"}
+            if not required_fields.issubset(reader.fieldnames):
+                return render_template("mailing_list_form.html", error="CSV must contain: name, email, location, info")
+            for row in reader:
+                db_insert("""
+                    INSERT INTO mailing_list (email, name, location, info)
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (email)
+                    DO UPDATE SET
+                        name = EXCLUDED.name,
+                        location = EXCLUDED.location,
+                        info = EXCLUDED.info;
+                """, (
+                    row["email"],
+                    row["name"],
+                    row["location"],
+                    row["info"]
+                ))
+                rows_to_show.append(row)
+            return render_template("thanks.html", source="/mailing-list/new", rows=rows_to_show[:10])
+
+        # ---- SINGLE FORM ENTRY PATH ----
+        data = {
+            "name": request.form["name"],
+            "email": request.form["email"],
+            "location": request.form["location"],
+            "info": request.form["info"],
+        }
+        db_insert("""
+            INSERT INTO mailing_list (email, name, location, info)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (email)
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                location = EXCLUDED.location,
+                info = EXCLUDED.info;
+        """, (
+            data["email"],
+            data["name"],
+            data["location"],
+            data["info"]
+        ))
+        rows_to_show.append(data)
+        return render_template("thanks.html", source="/mailing-list/new", rows=rows_to_show)
 
     return render_template("mailing_list_form.html")
+
+# =====================================================
+# THANKS PAGE
+# =====================================================
+@app.route("/thanks")
+def thanks():
+    page = request.args.get("page")
+    rows = session.pop("submitted_rows", [])
+    total = session.pop("submitted_total", len(rows))
+    return render_template("thanks.html", page=page, rows=rows[:10], total=total)
+
+
+# =====================================================
+# View all mailing list entries
+# =====================================================
+@app.route("/mailing-list/view")
+@require_upload_auth
+def view_mailing_list():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT email, name, location, info FROM mailing_list ORDER BY email")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return render_template("mailing_list_view.html", rows=rows[:50])  # show only first 50 rows
+
+
+@app.route("/mailing-list/download")
+@require_upload_auth
+def download_mailing_list():
+    import csv
+    from io import StringIO
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT email, name, location, info FROM mailing_list ORDER BY email")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["email", "name", "location", "info"])
+    writer.writerows(rows)
+    output = si.getvalue()
+    return (output, 200, {
+        "Content-Type": "text/csv",
+        "Content-Disposition": 'attachment; filename="mailing_list.csv"'
+    })
+
+
+# =====================================================
+# View all performances
+# =====================================================
+@app.route("/performances/view")
+@require_upload_auth
+def view_performances():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT date, location, info FROM performances ORDER BY date DESC")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return render_template("performances_view.html", rows=rows[:50])  # show first 50 rows
+
+
+@app.route("/performances/download")
+@require_upload_auth
+def download_performances():
+    import csv
+    from io import StringIO
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT date, location, info FROM performances ORDER BY date DESC")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    si = StringIO()
+    writer = csv.writer(si)
+    writer.writerow(["date", "location", "info"])
+    writer.writerows(rows)
+    output = si.getvalue()
+    return (output, 200, {
+        "Content-Type": "text/csv",
+        "Content-Disposition": 'attachment; filename="performances.csv"'
+    })
+
+

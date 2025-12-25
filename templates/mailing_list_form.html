@@ -1,10 +1,14 @@
 {% extends "base.html" %}
-
 {% block title %}New Mailing List Entry{% endblock %}
 
 {% block content %}
 <h2>Add Mailing List User</h2>
 
+{% if error %}
+<p style="color:red">{{ error }}</p>
+{% endif %}
+
+<h3>Single Entry</h3>
 <form method="post">
     <label>Name:</label><br>
     <input type="text" name="name" required><br><br>
@@ -15,9 +19,25 @@
     <label>Location:</label><br>
     <input type="text" name="location"><br><br>
 
-    <label>info:</label><br>
+    <label>Info:</label><br>
     <input type="text" name="info"><br><br>
 
     <button type="submit">Add User</button>
+</form>
+
+<hr>
+
+<h3>Bulk Upload (CSV)</h3>
+<h>
+<br>
+CSV must include headers<br>
+<br>
+name,email,location,info<br>
+Sean,sean@example.com,NYC,Pianist<br>
+Alex,alex@example.com,Boston,Composer<br>
+</h>
+<form method="post" enctype="multipart/form-data">
+    <input type="file" name="csv_file" accept=".csv" required><br><br>
+    <button type="submit">Upload CSV</button>
 </form>
 {% endblock %}
