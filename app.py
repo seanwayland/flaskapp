@@ -255,10 +255,10 @@ def new_mailing_list_entry():
         name = request.form["name"]
         email = request.form["email"]
         location = request.form["location"]
-        updated = request.form["updated"]
+        info = request.form["info"]
 
         # Placeholder: later insert into Postgres
-        print("New mailing list entry:", name, email, location, updated)
+        print("New mailing list entry:", name, email, location, info)
 
         return redirect(url_for("index"))
 
