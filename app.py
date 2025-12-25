@@ -131,7 +131,6 @@ def s3_upload():
 #  S3 LIST FILES
 # =====================================================
 @app.route("/s3/files")
-@require_upload_auth
 def list_s3_files():
     try:
         response = s3.list_objects_v2(Bucket=S3_BUCKET)
@@ -144,7 +143,6 @@ def list_s3_files():
 #  S3 DOWNLOAD
 # =====================================================
 @app.route("/s3/download/<path:key>")
-@require_upload_auth
 def s3_download(key):
     try:
         url = s3.generate_presigned_url(
@@ -210,7 +208,6 @@ def return_plugins():
         return str(e)
 
 @app.route('/return_rail_mary_album/')
-@require_upload_auth
 def return_rail_mary():
     resource = "rail_mary_album_complete.zip"
     try:
