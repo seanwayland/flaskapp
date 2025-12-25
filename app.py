@@ -372,7 +372,6 @@ def download_mailing_list():
 # View all performances
 # =====================================================
 @app.route("/performances/view")
-@require_upload_auth
 def view_performances():
     conn = get_db()
     cur = conn.cursor()
@@ -380,11 +379,10 @@ def view_performances():
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return render_template("performances_view.html", rows=rows[:50])  # show first 50 rows
+    return render_template("performances_view.html", rows=rows) 
 
 
 @app.route("/performances/download")
-@require_upload_auth
 def download_performances():
     import csv
     from io import StringIO
