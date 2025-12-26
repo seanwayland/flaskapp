@@ -448,34 +448,52 @@ def get_default_font_path():
         raise RuntimeError(f"Unsupported OS: {system}")
 
 
-def text_on_image(text, background_path="bg.jpg"):
+from textwrap import wrap
+from PIL import Image, ImageDraw, ImageFont
+
+def text_on_image(text, background_path="/home/ubuntu/flaskapp/bg.jpg"):
     img = Image.open(background_path)
     draw = ImageDraw.Draw(img)
-
     font_path = get_default_font_path()
-    font_size = 60
+    font_size = 15
     font = ImageFont.truetype(font_path, font_size)
 
-    draw.text(
-        (50, 50),
-        text,
-        font=font,
-        fill="white",
-        stroke_width=4,
-        stroke_fill="black"
-    )
+    # Wrap text to fit image width
+    max_width = img.width - 100  # padding
+    lines = []
+    for paragraph in text.splitlines():
+        lines.extend(wrap(paragraph, width=40))  # adjust width
 
+    y_text = 50
+    for line in lines:
+        draw.text(
+            (50, y_text),
+            line,
+            font=font,
+            fill="white",
+            stroke_width=3,
+            stroke_fill="black"
+        )
+        # Use textbbox to get height
+        bbox = draw.textbbox((0,0), line, font=font, stroke_width=3)
+        line_height = bbox[3] - bbox[1]
+        y_text += line_height + 5  # spacing
+
+    # ---- temp local file ----
     filename = f"performance_{int(__import__('time').time())}.png"
     local_path = f"/tmp/{filename}"
 
     img.save(local_path)
 
+    # ---- upload to S3 ----
     s3_key = f"performance_images/{filename}"
     upload_image_to_s3(local_path, s3_key)
 
+    # cleanup
     try:
         os.remove(local_path)
     except OSError:
         pass
 
     return s3_key
+
