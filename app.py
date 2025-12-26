@@ -16,11 +16,16 @@ from pathlib import Path
 import os
 import platform
 import psycopg2
+from PIL import Image, ImageDraw, ImageFont
+
 
 # -----------------------------
 # Determine if we should use the database
 # -----------------------------
 USE_DB = platform.system() != "Darwin"  # Skip DB on macOS
+
+
+
 
 def get_db():
     if not USE_DB:
@@ -73,6 +78,20 @@ with open(secrets_file) as f:
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
 UPLOAD_PASSWORD = os.environ["UPLOAD_PASSWORD"]
 UPLOAD_DIR = "/home/ubuntu/flaskapp/static/files"
+
+
+def upload_image_to_s3(local_path, s3_key):
+    s3.upload_file(
+        local_path,
+        S3_BUCKET,
+        s3_key,
+        ExtraArgs={
+            "ContentType": "image/png",
+            "ACL": "private"
+        }
+    )
+    return s3_key
+
 
 # =====================================================
 #  LOGIN ROUTE
@@ -245,16 +264,28 @@ def new_performance():
             "location": request.form["location"],
             "info": request.form["info"],
         }
+
+        poster_text = f"{data['info']}"
+        image_key = text_on_image(poster_text)
+
         db_insert(
-            "INSERT INTO performances (date, location, info) VALUES (%s, %s, %s)",
-            (data["date"], data["location"], data["info"])
+            """
+            INSERT INTO performances (date, location, info, image_url)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (data["date"], data["location"], data["info"], image_key)
         )
+
+        data["image_url"] = image_key
+
         return render_template(
             "thanks.html",
             source="/performances/new",
             rows=[data]
         )
+
     return render_template("performance_form.html")
+
 
 # =====================================================
 # Mailing List (with CSV support)
@@ -375,11 +406,15 @@ def download_mailing_list():
 def view_performances():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT date, location, info FROM performances ORDER BY date DESC")
+    cur.execute("""
+        SELECT date, location, info, image_url
+        FROM performances
+        ORDER BY date DESC
+    """)
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return render_template("performances_view.html", rows=rows) 
+    return render_template("performances_view.html", rows=rows)
 
 
 @app.route("/performances/download")
@@ -403,4 +438,44 @@ def download_performances():
         "Content-Disposition": 'attachment; filename="performances.csv"'
     })
 
+def get_default_font_path():
+    system = platform.system()
+    if system == "Darwin":  # macOS
+        return "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
+    elif system == "Linux":  # Ubuntu
+        return "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+    else:
+        raise RuntimeError(f"Unsupported OS: {system}")
 
+
+def text_on_image(text, background_path="bg.jpg"):
+    img = Image.open(background_path)
+    draw = ImageDraw.Draw(img)
+
+    font_path = get_default_font_path()
+    font_size = 60
+    font = ImageFont.truetype(font_path, font_size)
+
+    draw.text(
+        (50, 50),
+        text,
+        font=font,
+        fill="white",
+        stroke_width=4,
+        stroke_fill="black"
+    )
+
+    filename = f"performance_{int(__import__('time').time())}.png"
+    local_path = f"/tmp/{filename}"
+
+    img.save(local_path)
+
+    s3_key = f"performance_images/{filename}"
+    upload_image_to_s3(local_path, s3_key)
+
+    try:
+        os.remove(local_path)
+    except OSError:
+        pass
+
+    return s3_key

@@ -1,20 +1,20 @@
-{% extends "base.html" %}
-{% block title %}Performances{% endblock %}
-{% block content %}
-<h2>Performances</h2>
-<a href="{{ url_for('download_performances') }}">Download CSV</a>
-<table border="1" cellpadding="5" cellspacing="0">
-    <tr>
-        <th>Date</th>
-        <th>Location</th>
-        <th>Info</th>
-    </tr>
-    {% for row in rows %}
-    <tr>
-        <td>{{ row[0] }}</td>
-        <td>{{ row[1] }}</td>
-        <td>{{ row[2] }}</td>
-    </tr>
-    {% endfor %}
+<table border="1">
+  <tr>
+    <th>Date</th>
+    <th>Location</th>
+    <th>Info</th>
+    <th>Poster</th>
+  </tr>
+  {% for date, location, info, image_url in rows %}
+  <tr>
+    <td>{{ date }}</td>
+    <td>{{ location }}</td>
+    <td>{{ info }}</td>
+    <td>
+      {% if image_url %}
+        <img src="{{ url_for('s3_download', key=image_url) }}" width="200">
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
 </table>
-{% endblock %}
