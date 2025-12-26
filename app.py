@@ -87,9 +87,12 @@ ses_client = boto3.client(
     region_name=SES_REGION
 )
 
+
+
 def send_email(to_address, subject, html_body, text_body):
     response = ses_client.send_email(
-        Source="seanwayland@gmail.com",  # verified email
+        Source="Sean Wayland <sean@seanwayland.com>",
+        ReplyToAddresses=["seanwayland@gmail.com"],  # or another real inbox
         Destination={"ToAddresses": [to_address]},
         Message={
             "Subject": {"Data": subject, "Charset": "UTF-8"},
