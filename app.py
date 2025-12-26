@@ -9,7 +9,7 @@ from flask import (
     url_for
 )
 import boto3
-from config import access_key_id, secret_access_key, S3_BUCKET
+from config import access_key_id, secret_access_key, S3_BUCKET, SES_ACCESS_KEY, SES_SECRET_KEY, SES_REGION
 import csv
 from io import TextIOWrapper
 from pathlib import Path
@@ -78,6 +78,28 @@ with open(secrets_file) as f:
 app.secret_key = os.environ["FLASK_SECRET_KEY"]
 UPLOAD_PASSWORD = os.environ["UPLOAD_PASSWORD"]
 UPLOAD_DIR = "/home/ubuntu/flaskapp/static/files"
+
+
+ses_client = boto3.client(
+    "ses",
+    aws_access_key_id=SES_ACCESS_KEY,
+    aws_secret_access_key=SES_SECRET_KEY,
+    region_name=SES_REGION
+)
+
+def send_email(to_address, subject, html_body, text_body):
+    response = ses_client.send_email(
+        Source="seanwayland@gmail.com",  # verified email
+        Destination={"ToAddresses": [to_address]},
+        Message={
+            "Subject": {"Data": subject, "Charset": "UTF-8"},
+            "Body": {
+                "Html": {"Data": html_body, "Charset": "UTF-8"},
+                "Text": {"Data": text_body, "Charset": "UTF-8"}
+            }
+        }
+    )
+    return response
 
 
 def upload_image_to_s3(local_path, s3_key):
@@ -406,15 +428,36 @@ def download_mailing_list():
 def view_performances():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("""
-        SELECT date, location, info, image_url
-        FROM performances
-        ORDER BY date DESC
-    """)
+    cur.execute("SELECT date, location, info, image_url FROM performances WHERE date >= NOW() ORDER BY date DESC")
     rows = cur.fetchall()
     cur.close()
     conn.close()
-    return render_template("performances_view.html", rows=rows)
+
+    # Convert to list of dicts and generate presigned URLs
+    performances = []
+    for row in rows:
+        date, location, info, image_key = row
+        if image_key:
+            try:
+                image_url = s3.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": S3_BUCKET, "Key": image_key},
+                    ExpiresIn=3600  # URL valid for 1 hour
+                )
+            except Exception:
+                image_url = None
+        else:
+            image_url = None
+        performances.append({
+            "date": date,
+            "location": location,
+            "info": info,
+            "image_url": image_url,
+            "image_key": image_key  # raw key text
+        })
+
+    return render_template("performances_view.html", performances=performances)
+
 
 
 @app.route("/performances/download")
@@ -496,4 +539,61 @@ def text_on_image(text, background_path="/home/ubuntu/flaskapp/bg.jpg"):
         pass
 
     return s3_key
+
+
+from urllib.parse import unquote
+
+@app.route("/mailing-list/unsubscribe")
+def unsubscribe():
+    email = request.args.get("email")
+    if not email:
+        return "Missing email", 400
+    email = unquote(email)
+    
+    db_insert(
+        "UPDATE mailing_list SET unsubscribed = TRUE WHERE email = %s",
+        (email,)
+    )
+    return render_template("unsubscribed.html", email=email)
+
+
+def send_newsletter(subject="Upcoming Sean Wayland Performances", body_text="Check out the upcoming performances!"):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT email, name FROM mailing_list WHERE unsubscribed = FALSE")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    for email, name in rows:
+        # personalize HTML and plain text bodies
+        html_body = f"""
+        <p>Hi {name},</p>
+        <p>Upcoming Sean Wayland Performances:</p>
+        <p><a href='https://waylomusic.com/performances/view'>View Performances</a></p>
+        <p><a href='https://waylomusic.com/mailing-list/unsubscribe?email={email}'>Unsubscribe</a></p>
+        """
+        text_body = f"""
+Hi {name},
+
+Upcoming Sean Wayland Performances:
+https://waylomusic.com/performances/view
+
+Unsubscribe: https://waylomusic.com/mailing-list/unsubscribe?email={email}
+"""
+        send_email(email, subject, html_body, text_body)
+
+from flask import flash, redirect, url_for
+
+@app.route("/send-newsletter", methods=["POST"])
+@require_upload_auth
+def send_newsletter_endpoint():
+    try:
+        send_newsletter()
+        return "<h2>Newsletter sent successfully!</h2>"
+    except Exception as e:
+        return f"<h2>Error sending newsletter: {e} Method used {request.method}</h2>"
+
+
+
 

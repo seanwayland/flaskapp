@@ -1,20 +1,10 @@
-<table border="1">
-  <tr>
-    <th>Date</th>
-    <th>Location</th>
-    <th>Info</th>
-    <th>Poster</th>
-  </tr>
-  {% for date, location, info, image_url in rows %}
-  <tr>
-    <td>{{ date }}</td>
-    <td>{{ location }}</td>
-    <td>{{ info }}</td>
-    <td>
-      {% if image_url %}
-        <img src="{{ url_for('s3_download', key=image_url) }}" width="200">
-      {% endif %}
-    </td>
-  </tr>
-  {% endfor %}
-</table>
+{% for p in performances %}
+  <div class="performance">
+    <p><strong>{{ p.date }}</strong> - {{ p.location }}</p>
+    <p>{{ p.info | replace('\n', '<br>') | safe }}</p>
+    {% if p.image_url %}
+      <img src="{{ p.image_url }}" alt="Performance image" style="max-width:300px;">
+      <p>IMAGE URL: <a href="{{ p.image_url }}" target="_blank">{{ p.image_key }}</a></p>
+    {% endif %}
+  </div>
+{% endfor %}
