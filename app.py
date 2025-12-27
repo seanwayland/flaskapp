@@ -315,6 +315,9 @@ def new_performance():
 # =====================================================
 # Mailing List (with CSV support)
 # =====================================================
+# =====================================================
+# Mailing List (with CSV support + unsubscribed)
+# =====================================================
 @app.route("/mailing-list/new", methods=["GET", "POST"])
 @require_upload_auth
 def new_mailing_list_entry():
@@ -325,40 +328,85 @@ def new_mailing_list_entry():
         # ---- CSV UPLOAD PATH ----
         if "csv_file" in request.files and request.files["csv_file"].filename:
             csv_file = request.files["csv_file"]
+
             if not csv_file.filename.lower().endswith(".csv"):
-                return render_template("mailing_list_form.html", error="Please upload a CSV file")
+                return render_template(
+                    "mailing_list_form.html",
+                    error="Please upload a CSV file"
+                )
+
             reader = csv.DictReader(TextIOWrapper(csv_file, encoding="utf-8"))
-            required_fields = {"name", "email", "location", "info"}
-            if not required_fields.issubset(reader.fieldnames):
-                return render_template("mailing_list_form.html", error="CSV must contain: name, email, location, info")
+
+            # normalize fieldnames to lowercase
+            fieldnames = {f.lower() for f in reader.fieldnames}
+
+            required_fields = {"name", "email"}
+            if not required_fields.issubset(fieldnames):
+                return render_template(
+                    "mailing_list_form.html",
+                    error="CSV must contain at least: Name, Email"
+                )
+
             for row in reader:
+                name = row.get("Name") or row.get("name") or ""
+                email = row.get("Email") or row.get("email")
+                location = row.get("Location") or row.get("location") or ""
+                info = row.get("Info") or row.get("info") or ""
+
+                # Unsubscribed: 1 = TRUE, anything else = FALSE
+                unsubscribed_raw = (
+                    row.get("Unsubscribed")
+                    or row.get("unsubscribed")
+                    or ""
+                ).strip()
+
+                unsubscribed = unsubscribed_raw in ("1", "true", "TRUE", "yes", "YES")
+
+                if not email:
+                    continue  # skip invalid rows
+
                 db_insert("""
-                    INSERT INTO mailing_list (email, name, location, info)
-                    VALUES (%s, %s, %s, %s)
+                    INSERT INTO mailing_list (email, name, location, info, unsubscribed)
+                    VALUES (%s, %s, %s, %s, %s)
                     ON CONFLICT (email)
                     DO UPDATE SET
                         name = EXCLUDED.name,
                         location = EXCLUDED.location,
-                        info = EXCLUDED.info;
+                        info = EXCLUDED.info,
+                        unsubscribed = EXCLUDED.unsubscribed;
                 """, (
-                    row["email"],
-                    row["name"],
-                    row["location"],
-                    row["info"]
+                    email,
+                    name,
+                    location,
+                    info,
+                    unsubscribed
                 ))
-                rows_to_show.append(row)
-            return render_template("thanks.html", source="/mailing-list/new", rows=rows_to_show[:10])
+
+                rows_to_show.append({
+                    "name": name,
+                    "email": email,
+                    "location": location,
+                    "info": info,
+                    "unsubscribed": unsubscribed
+                })
+
+            return render_template(
+                "thanks.html",
+                source="/mailing-list/new",
+                rows=rows_to_show[:10]
+            )
 
         # ---- SINGLE FORM ENTRY PATH ----
         data = {
             "name": request.form["name"],
             "email": request.form["email"],
-            "location": request.form["location"],
-            "info": request.form["info"],
+            "location": request.form.get("location", ""),
+            "info": request.form.get("info", ""),
         }
+
         db_insert("""
-            INSERT INTO mailing_list (email, name, location, info)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO mailing_list (email, name, location, info, unsubscribed)
+            VALUES (%s, %s, %s, %s, FALSE)
             ON CONFLICT (email)
             DO UPDATE SET
                 name = EXCLUDED.name,
@@ -370,10 +418,16 @@ def new_mailing_list_entry():
             data["location"],
             data["info"]
         ))
+
         rows_to_show.append(data)
-        return render_template("thanks.html", source="/mailing-list/new", rows=rows_to_show)
+        return render_template(
+            "thanks.html",
+            source="/mailing-list/new",
+            rows=rows_to_show
+        )
 
     return render_template("mailing_list_form.html")
+
 
 # =====================================================
 # THANKS PAGE
@@ -394,7 +448,7 @@ def thanks():
 def view_mailing_list():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT email, name, location, info FROM mailing_list ORDER BY email")
+    cur.execute("SELECT email, name, location, info, unsubscribed FROM mailing_list ORDER BY email")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -408,14 +462,14 @@ def download_mailing_list():
     from io import StringIO
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT email, name, location, info FROM mailing_list ORDER BY email")
+    cur.execute("SELECT email, name, location, info, unsubscribed FROM mailing_list ORDER BY email")
     rows = cur.fetchall()
     cur.close()
     conn.close()
 
     si = StringIO()
     writer = csv.writer(si)
-    writer.writerow(["email", "name", "location", "info"])
+    writer.writerow(["email", "name", "location", "info", "unsubscribed"])
     writer.writerows(rows)
     output = si.getvalue()
     return (output, 200, {
@@ -431,7 +485,7 @@ def download_mailing_list():
 def view_performances():
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT date, location, info, image_url FROM performances WHERE date >= NOW() ORDER BY date DESC")
+    cur.execute("SELECT date, location, info, image_url FROM performances WHERE date >= NOW() ORDER BY date ASC")
     rows = cur.fetchall()
     cur.close()
     conn.close()
@@ -546,56 +600,109 @@ def text_on_image(text, background_path="/home/ubuntu/flaskapp/bg.jpg"):
 
 from urllib.parse import unquote
 
+
 @app.route("/mailing-list/unsubscribe")
 def unsubscribe():
     email = request.args.get("email")
+    token = request.args.get("secret")  # optional
+    
     if not email:
         return "Missing email", 400
+    
+    # If token exists, verify it (bounce/Lambda case)
+    if token and token != "Banana":
+        return "Unauthorized", 403
+    
     email = unquote(email)
     
     db_insert(
         "UPDATE mailing_list SET unsubscribed = TRUE WHERE email = %s",
         (email,)
     )
+    
     return render_template("unsubscribed.html", email=email)
 
 
-def send_newsletter(subject="Upcoming Sean Wayland Performances", body_text="Check out the upcoming performances!"):
+def send_newsletter(
+    subject="Upcoming Sean Wayland Performances",
+    body_text="Check out the upcoming performances!",
+    extra_message=""
+):
+    if extra_message:
+        extra_html = extra_message.replace("\r\n", "\n").replace("\n", "<br>")
     conn = get_db()
     cur = conn.cursor()
-    cur.execute("SELECT email, name FROM mailing_list WHERE unsubscribed = FALSE")
+    cur.execute("""
+        SELECT email, name
+        FROM mailing_list
+        WHERE unsubscribed = FALSE
+        AND email IN ('seanwayland@gmail.com','bounce@simulator.amazonses.com', 'complaint@simulator.amazonses.com')
+    """)
     rows = cur.fetchall()
     cur.close()
     conn.close()
 
     for email, name in rows:
-        # personalize HTML and plain text bodies
+
+        extra_html = f"<p>{extra_message}</p>" if extra_message else ""
+        extra_text = f"\n\n{extra_message}" if extra_message else ""
+
         html_body = f"""
-        <p>Hi {name},</p>
-        <p>Upcoming Sean Wayland Performances:</p>
-        <p><a href='https://waylomusic.com/performances/view'>View Performances</a></p>
-        <p><a href='https://waylomusic.com/mailing-list/unsubscribe?email={email}'>Unsubscribe</a></p>
+        <p>Hi,</p>
+        {extra_html}
+        <p><strong>Upcoming Sean Wayland Performances</strong></p>
+        <p>
+            <a href="https://waylomusic.com/performances/view">
+                View Performances
+            </a>
+        </p>
+        <p>
+            <a href="https://waylomusic.com/mailing-list/unsubscribe?email={email}">
+                Unsubscribe
+            </a>
+        </p>
         """
+
         text_body = f"""
-Hi {name},
+Dear friend ,
+{extra_text}
 
 Upcoming Sean Wayland Performances:
 https://waylomusic.com/performances/view
 
-Unsubscribe: https://waylomusic.com/mailing-list/unsubscribe?email={email}
+Unsubscribe:
+https://waylomusic.com/mailing-list/unsubscribe?email={email}
 """
+
         send_email(email, subject, html_body, text_body)
+
+
 
 from flask import flash, redirect, url_for
 
-@app.route("/send-newsletter", methods=["POST"])
+import threading
+
+@app.route("/send-newsletter", methods=["GET", "POST"])
 @require_upload_auth
 def send_newsletter_endpoint():
-    try:
-        send_newsletter()
-        return "<h2>Newsletter sent successfully!</h2>"
-    except Exception as e:
-        return f"<h2>Error sending newsletter: {e} Method used {request.method}</h2>"
+    if request.method == "POST":
+        extra_message = request.form.get("extra_message", "")
+        try:
+            # Fire-and-forget
+            threading.Thread(
+                target=send_newsletter,
+                kwargs={"extra_message": extra_message},
+                daemon=True
+            ).start()
+            return "<h2>Newsletter sent successfully!</h2>"
+        except Exception as e:
+            return f"<h2>Error sending newsletter: {e}</h2>"
+
+    # GET request → show form
+    return render_template("newsletter_compose.html")
+
+
+
 
 
 
