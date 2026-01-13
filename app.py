@@ -18,6 +18,9 @@ import platform
 import psycopg2
 from PIL import Image, ImageDraw, ImageFont
 
+import logging
+logging.basicConfig(level=logging.INFO)
+
 
 # -----------------------------
 # Determine if we should use the database
@@ -623,48 +626,51 @@ def unsubscribe():
     return render_template("unsubscribed.html", email=email)
 
 
-def send_newsletter(
-    subject="Upcoming Sean Wayland Performances",
-    body_text="Check out the upcoming performances!",
-    extra_message=""
-):
-    if extra_message:
-        extra_html = extra_message.replace("\r\n", "\n").replace("\n", "<br>")
+
+# -------------------------
+# SEND NEWSLETTER FUNCTION
+# -------------------------
+def send_newsletter(subject="Upcoming Sean Wayland Performances",
+                    body_text="Check out the upcoming performances!",
+                    extra_message=""):
+    """
+    Sends newsletter to users.
+    Opens its own DB connection.
+    """
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT email, name
-        FROM mailing_list
-        WHERE unsubscribed = FALSE
-        AND email IN ('seanwayland@gmail.com','bounce@simulator.amazonses.com', 'complaint@simulator.amazonses.com')
-    """)
-    rows = cur.fetchall()
-    cur.close()
-    conn.close()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT email, name
+            FROM mailing_list
+            WHERE unsubscribed = FALSE
+            AND email IN ('seanwayland@gmail.com',
+                          'bounce@simulator.amazonses.com',
+                          'complaint@simulator.amazonses.com')
+        """)
+        rows = cur.fetchall()
+        cur.close()
+    finally:
+        conn.close()
 
     for email, name in rows:
-
         extra_html = f"<p>{extra_message}</p>" if extra_message else ""
         extra_text = f"\n\n{extra_message}" if extra_message else ""
 
         html_body = f"""
-        <p>Hi,</p>
+        <p>Hi {name or 'there'},</p>
         {extra_html}
         <p><strong>Upcoming Sean Wayland Performances</strong></p>
         <p>
-            <a href="https://waylomusic.com/performances/view">
-                View Performances
-            </a>
+            <a href="https://waylomusic.com/performances/view">View Performances</a>
         </p>
         <p>
-            <a href="https://waylomusic.com/mailing-list/unsubscribe?email={email}">
-                Unsubscribe
-            </a>
+            <a href="https://waylomusic.com/mailing-list/unsubscribe?email={email}">Unsubscribe</a>
         </p>
         """
 
         text_body = f"""
-Dear friend ,
+Dear {name or 'friend'},
 {extra_text}
 
 Upcoming Sean Wayland Performances:
@@ -674,49 +680,61 @@ Unsubscribe:
 https://waylomusic.com/mailing-list/unsubscribe?email={email}
 """
 
-        send_email(email, subject, html_body, text_body)
+        send_email(
+    email,
+    subject,
+    html_body,
+    text_body,
+    source="Sean Wayland <sean@waylomusic.com>"  # must match verified domain
+)
+
+        logging.info(f"Sent newsletter to {email}")
+        
 
 
-
-from flask import flash, redirect, url_for
-
-import threading
-
-
-def send_newsletter_job(extra_message):
+# -------------------------
+# BACKGROUND THREAD FUNCTION
+# -------------------------
+def send_newsletter_thread(extra_message):
     """
-    Runs in a background thread.
-    MUST create its own DB connection.
+    Runs newsletter sending in a separate thread.
     """
-    conn = get_db()
     try:
-        cur = conn.cursor()
-        send_newsletter(cur, extra_message)  # or inline logic
-        conn.commit()
-    except Exception as e:
-        # Log this properly in real apps
-        print("Newsletter error:", e)
-    finally:
-        conn.close()
+        send_newsletter(extra_message=extra_message)
+        logging.info("Newsletter thread finished successfully")
+    except Exception:
+        logging.exception("Newsletter thread failed")
 
+
+# -------------------------
+# SEND NEWSLETTER ENDPOINT
+# -------------------------
 @app.route("/send-newsletter", methods=["GET", "POST"])
 @require_upload_auth
 def send_newsletter_endpoint():
+    message = None
+    extra_message = ""
+
     if request.method == "POST":
         extra_message = request.form.get("extra_message", "").strip()
 
-        # Start background job (no Flask globals inside)
+        # --- EARLY RETURN FOR TESTING ---
+        return f"POST received! Extra message: {extra_message}"
+
+        # Fire-and-forget background thread
         threading.Thread(
-            target=send_newsletter_job,
+            target=send_newsletter_thread,
             args=(extra_message,),
             daemon=True
         ).start()
 
-        # Prevent double-send on refresh
-        return  "<h2>Newsletter is being sent.</h2>"
+        message = "Newsletter is being sent..."
 
-    # GET → show compose form
-    return render_template("newsletter_compose.html")
+    return render_template(
+        "newsletter_compose.html",
+        message=message,
+        extra_message=extra_message
+    )
 
 @app.route('/admin')
 @require_upload_auth

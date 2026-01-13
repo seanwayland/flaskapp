@@ -4,7 +4,7 @@
 <p style="color:red;">{{ error }}</p>
 {% endif %}
 
-<form method="POST">
+<form method="POST" action="/send-newsletter">
     <label for="extra_message">
         Optional message to include at the top of the email:
     </label><br><br>
@@ -19,3 +19,7 @@
     <br><br>
     <button type="submit">Send Newsletter</button>
 </form>
+
+{% if message %}
+<p style="color: green;">{{ message }}</p>
+{% endif %}
