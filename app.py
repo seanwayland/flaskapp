@@ -682,23 +682,40 @@ from flask import flash, redirect, url_for
 
 import threading
 
+
+def send_newsletter_job(extra_message):
+    """
+    Runs in a background thread.
+    MUST create its own DB connection.
+    """
+    conn = get_db()
+    try:
+        cur = conn.cursor()
+        send_newsletter(cur, extra_message)  # or inline logic
+        conn.commit()
+    except Exception as e:
+        # Log this properly in real apps
+        print("Newsletter error:", e)
+    finally:
+        conn.close()
+
 @app.route("/send-newsletter", methods=["GET", "POST"])
 @require_upload_auth
 def send_newsletter_endpoint():
     if request.method == "POST":
-        extra_message = request.form.get("extra_message", "")
-        try:
-            # Fire-and-forget
-            threading.Thread(
-                target=send_newsletter,
-                kwargs={"extra_message": extra_message},
-                daemon=True
-            ).start()
-            return "<h2>Newsletter sent successfully!</h2>"
-        except Exception as e:
-            return f"<h2>Error sending newsletter: {e}</h2>"
+        extra_message = request.form.get("extra_message", "").strip()
 
-    # GET request → show form
+        # Start background job (no Flask globals inside)
+        threading.Thread(
+            target=send_newsletter_job,
+            args=(extra_message,),
+            daemon=True
+        ).start()
+
+        # Prevent double-send on refresh
+        return  "<h2>Newsletter is being sent.</h2>"
+
+    # GET → show compose form
     return render_template("newsletter_compose.html")
 
 @app.route('/admin')
