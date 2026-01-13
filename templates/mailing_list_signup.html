@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Join the Mailing List</title>
+</head>
+<body>
+
+<h2>Join the Sean Wayland Mailing List</h2>
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+
+<form method="POST">
+    <p>
+        <label>Name</label><br>
+        <input type="text" name="name" required>
+    </p>
+
+    <p>
+        <label>Email</label><br>
+        <input type="email" name="email" required>
+    </p>
+
+    <p>
+        <label>Location (optional)</label><br>
+        <input type="text" name="location">
+    </p>
+
+    <button type="submit">Subscribe</button>
+</form>
+
+<p style="font-size: 0.9em; color: #666;">
+    You’ll only receive occasional updates about performances.
+    You can unsubscribe at any time.
+</p>
+
+</body>
+</html>
+

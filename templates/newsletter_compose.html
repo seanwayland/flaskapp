@@ -1,0 +1,21 @@
+<h2>Send Newsletter</h2>
+
+{% if error %}
+<p style="color:red;">{{ error }}</p>
+{% endif %}
+
+<form method="POST">
+    <label for="extra_message">
+        Optional message to include at the top of the email:
+    </label><br><br>
+
+    <textarea
+        name="extra_message"
+        rows="8"
+        cols="70"
+        placeholder="e.g. New shows added, hope to see you there!"
+    >{{ extra_message or "" }}</textarea>
+
+    <br><br>
+    <button type="submit">Send Newsletter</button>
+</form>

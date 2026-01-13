@@ -701,6 +701,49 @@ def send_newsletter_endpoint():
     # GET request → show form
     return render_template("newsletter_compose.html")
 
+@app.route('/admin')
+@require_upload_auth
+def admin():
+    return render_template('admin.html')
+
+# =====================================================
+# Public Mailing List Signup
+# =====================================================
+@app.route("/mailing_list/signup", methods=["GET", "POST"])
+def mailing_list_signup():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        location = request.form.get("location", "").strip()
+
+        if not name or not email:
+            return render_template(
+                "mailing_list_signup.html",
+                error="Name and email are required."
+            )
+
+        # Insert as unsubscribed = FALSE
+        db_insert("""
+            INSERT INTO mailing_list (email, name, location, unsubscribed)
+            VALUES (%s, %s, %s, FALSE)
+            ON CONFLICT (email)
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                location = EXCLUDED.location;
+        """, (email, name, location))
+
+        # Optional: send confirmation email later (double opt-in)
+        # send_confirm_email(email)
+
+        return render_template("mailing_list_signup_success.html", email=email)
+
+    return render_template("mailing_list_signup.html")
+
+
+
+
+
+
 
 
 
