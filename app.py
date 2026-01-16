@@ -646,7 +646,7 @@ def send_newsletter(subject="Upcoming Sean Wayland Performances",
             SELECT email, name
             FROM mailing_list
             WHERE unsubscribed = FALSE
-            AND email IN ('seanwayland@gmail.com',
+            AND email IN ('seanwayland@gmail.com', 'echoqshen@gmail.com',
                           'bounce@simulator.amazonses.com',
                           'complaint@simulator.amazonses.com')
         """)
@@ -656,8 +656,11 @@ def send_newsletter(subject="Upcoming Sean Wayland Performances",
         conn.close()
 
     for email, name in rows:
-        extra_html = f"<p>{extra_message}</p>" if extra_message else ""
+
+        # HTML version with proper line breaks
+        extra_html = f"<p>{extra_message.replace('\n', '<br>')}</p>" if extra_message else ""
         extra_text = f"\n\n{extra_message}" if extra_message else ""
+
 
         html_body = f"""
         <p>Hi {name or 'there'},</p>
@@ -722,15 +725,20 @@ def send_newsletter_endpoint():
         extra_message = request.form.get("extra_message", "").strip()
 
         # --- EARLY RETURN FOR TESTING ---
-        return f"POST received! Extra message: {extra_message}"
+        #return f"POST received! Extra message: {extra_message}"
 
         # Fire-and-forget background thread
-        threading.Thread(
-            target=send_newsletter_thread,
-            args=(extra_message,),
-            daemon=True
-        ).start()
+        # threading.Thread(
+        #     target=send_newsletter_thread,
+        #     args=(extra_message,),
+        #     daemon=True
+        # ).start()
 
+        try:
+            send_newsletter(extra_message=extra_message)
+            logging.info("Newsletter thread finished successfully")
+        except Exception:
+            logging.exception("Newsletter thread failed")
         message = "Newsletter is being sent..."
 
     return render_template(
