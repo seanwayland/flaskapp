@@ -90,12 +90,13 @@ ses_client = boto3.client(
     region_name=SES_REGION
 )
 
+import time
 
 
 def send_email(to_address, subject, html_body, text_body):
     response = ses_client.send_email(
-        Source="Sean Wayland <sean@seanwayland.com>",
-        ReplyToAddresses=["seanwayland@gmail.com"],  # or another real inbox
+        ReplyToAddresses=["seanwayland@gmail.com"],
+        Source="Sean Wayland <sean@waylomusic.com>", # or another real inbox
         Destination={"ToAddresses": [to_address]},
         Message={
             "Subject": {"Data": subject, "Charset": "UTF-8"},
@@ -105,6 +106,7 @@ def send_email(to_address, subject, html_body, text_body):
             }
         }
     )
+    time.sleep(0.2)
     return response
 
 
@@ -660,6 +662,7 @@ def send_newsletter(subject="Upcoming Sean Wayland Performances",
         html_body = f"""
         <p>Hi {name or 'there'},</p>
         {extra_html}
+        <p>“You are receiving this email because you signed up for updates at waylomusic.com.”</p>
         <p><strong>Upcoming Sean Wayland Performances</strong></p>
         <p>
             <a href="https://waylomusic.com/performances/view">View Performances</a>
