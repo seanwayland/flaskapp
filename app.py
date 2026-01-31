@@ -93,10 +93,10 @@ ses_client = boto3.client(
 import time
 
 
-def send_email(to_address, subject, html_body, text_body):
+def send_email(to_address, subject, html_body, text_body, source="seanwayland@gmail.com"):
     response = ses_client.send_email(
+        Source=source,
         ReplyToAddresses=["seanwayland@gmail.com"],
-        Source="Sean Wayland <sean@waylomusic.com>", # or another real inbox
         Destination={"ToAddresses": [to_address]},
         Message={
             "Subject": {"Data": subject, "Charset": "UTF-8"},
@@ -628,16 +628,12 @@ def unsubscribe():
     return render_template("unsubscribed.html", email=email)
 
 
-
-# -------------------------
-# SEND NEWSLETTER FUNCTION
-# -------------------------
 def send_newsletter(subject="Upcoming Sean Wayland Performances",
-                    body_text="Check out the upcoming performances!",
                     extra_message=""):
     """
-    Sends newsletter to users.
-    Opens its own DB connection.
+    Sends newsletter to users in the mailing list who are not unsubscribed.
+    Preserves line breaks in both HTML and plain text.
+    Opens its own DB connection for fetching emails.
     """
     conn = get_db()
     try:
@@ -645,38 +641,44 @@ def send_newsletter(subject="Upcoming Sean Wayland Performances",
         cur.execute("""
             SELECT email, name
             FROM mailing_list
-            WHERE unsubscribed = FALSE
-            AND email IN ('seanwayland@gmail.com', 'echoqshen@gmail.com',
-                          'bounce@simulator.amazonses.com',
-                          'complaint@simulator.amazonses.com')
+            WHERE unsubscribed = FALSE;
         """)
+                    # AND email IN (
+            #     'seanwayland@gmail.com',
+            #     'echoqshen@gmail.com',
+            #     'bounce@simulator.amazonses.com',
+            #     'complaint@simulator.amazonses.com'
+            # )
         rows = cur.fetchall()
         cur.close()
     finally:
         conn.close()
 
     for email, name in rows:
+        # Prepare extra message for HTML and plain text
+        if extra_message:
+            extra_html = "<p>" + extra_message.replace("\n", "<br>") + "</p>"
+            extra_text = extra_message  # preserves newlines for plain text
+        else:
+            extra_html = ""
+            extra_text = ""
 
-        # HTML version with proper line breaks
-        extra_html = f"<p>{extra_message.replace('\n', '<br>')}</p>" if extra_message else ""
-        extra_text = f"\n\n{extra_message}" if extra_message else ""
-
-
+        # HTML body
         html_body = f"""
-        <p>Hi {name or 'there'},</p>
-        {extra_html}
-        <p>“You are receiving this email because you signed up for updates at waylomusic.com.”</p>
-        <p><strong>Upcoming Sean Wayland Performances</strong></p>
-        <p>
-            <a href="https://waylomusic.com/performances/view">View Performances</a>
-        </p>
-        <p>
-            <a href="https://waylomusic.com/mailing-list/unsubscribe?email={email}">Unsubscribe</a>
-        </p>
-        """
+<p>Hi {name or 'there'},</p>
+{extra_html}
+<p>“You are receiving this email because you signed up for updates at waylomusic.com.”</p>
+<p><strong>Upcoming Sean Wayland Performances</strong></p>
+<p>
+    <a href="https://waylomusic.com/performances/view">View Performances</a>
+</p>
+<p>
+    <a href="https://waylomusic.com/mailing-list/unsubscribe?email={email}">Unsubscribe</a>
+</p>
+"""
 
-        text_body = f"""
-Dear {name or 'friend'},
+        # Plain text body
+        text_body = f"""Dear {name or 'friend'},
 {extra_text}
 
 Upcoming Sean Wayland Performances:
@@ -686,16 +688,18 @@ Unsubscribe:
 https://waylomusic.com/mailing-list/unsubscribe?email={email}
 """
 
-        send_email(
-    email,
-    subject,
-    html_body,
-    text_body,
-    source="Sean Wayland <sean@waylomusic.com>"  # must match verified domain
-)
+        # Send email via SES
+        try:
+            send_email(
+                email,
+                subject,
+                html_body,
+                text_body,
+            )
+            logging.info(f"Sent newsletter to {email}")
+        except Exception as e:
+            logging.error(f"Failed to send to {email}: {e}")
 
-        logging.info(f"Sent newsletter to {email}")
-        
 
 
 # -------------------------
