@@ -1,54 +1,158 @@
 
 
 
-<link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+<style>
+  body {
+    background: linear-gradient(135deg, #2d5a3d 0%, #3d7a52 100%);
+    min-height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  .hero-section {
+    padding: 80px 20px 10px;
+    text-align: center;
+    color: white;
+    margin-bottom: 20px;
+  }
+  .hero-section h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(135deg, #2d5a3d 0%, #3d7a52 100%);
+    padding: 20px 0;
+    z-index: 100;
+    margin: 0;
+  }
+  .hero-image {
+    max-width: 450px;
+    width: 100%;
+    border-radius: 12px;
+    margin-bottom: 0px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+  .content-wrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+    margin-top: 0;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 25px;
+    margin-bottom: 40px;
+  }
+  .feature-card {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    text-align: center;
+  }
+  .feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+  }
+  .feature-card h3 {
+    color: #5fb373;
+    margin-bottom: 15px;
+    font-weight: 600;
+  }
+  .feature-card p {
+    color: #666;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #5fb373 0%, #7acc66 100%);
+    border: none;
+    padding: 10px 30px;
+    font-weight: 600;
+    border-radius: 8px;
+    transition: transform 0.2s ease;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #7acc66 0%, #9ae67d 100%);
+    transform: scale(1.05);
+    color: white;
+  }
+  .cta-section {
+    background: white;
+    border-radius: 12px;
+    padding: 40px;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    margin-top: 40px;
+  }
+  .cta-section h2 {
+    color: #5fb373;
+    margin-bottom: 20px;
+    font-weight: 700;
+  }
+  .cta-section .btn {
+    margin-top: 15px;
+    font-size: 1.1rem;
+  }
+</style>
 
-<div>
-<p>WELCOME TO SEAN WAYLAND'S MUSIC DISTRIBUTION SITE</p>
+<div class="hero-section">
+  <h1>Sean Wayland's Music</h1>
+  <img src="/static/images/waylo.jpg" alt="Sean Wayland" class="hero-image">
 </div>
 
-<div>
-<iframe width="560" height="315" src="https://www.youtube.com/embed/EVYdy4gZWP0" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
-</div>
+<div class="content-wrapper">
+  <div class="card-grid">
+    <div class="feature-card">
+      <h3>🎵 Rail Mary Album</h3>
+      <p>Download the latest album in high-fidelity quality and listen to new music</p>
+      <a href="/rail_mary/" target="_blank" class="btn btn-primary">Download Album</a>
+    </div>
 
-<p>Like the music or plugins provided here? Buy me a Coffee !! </p>
-<a href="https://www.buymeacoffee.com/seanwaylan9" target="_blank" >Buy me a Coffee</a>
+    <div class="feature-card">
+      <h3>📄 Music Charts</h3>
+      <p>Access thousands of Sean Wayland music charts and compositions in PDF format</p>
+      <a href="/return-all_charts/" target="_blank" class="btn btn-primary">Download PDFs</a>
+    </div>
 
- 
-<p>LINK TO PAGE TO LISTEN OR FREE DOWNLOAD NEW ALBUM IN HI FIDELITY</p>
+    <div class="feature-card">
+      <h3>🔧 Plugins</h3>
+      <p>Download professional music plugins. Email seanwayland@gmail.com for support</p>
+      <a href="/return-plugins/" target="_blank" class="btn btn-primary">Download Plugins</a>
+    </div>
 
-<div class="container" align="left">
- <a href="/rail_mary/" target="blank"><button >Download Rail Mary Album!</button></a>
-</div>
+    <div class="feature-card">
+      <h3>🎤 Live Performances</h3>
+      <p>View the upcoming performances calendar and see when the next gig is</p>
+      <a href="/performances/view" target="_blank" class="btn btn-primary">View Gigs</a>
+    </div>
 
-<p>This link below has thousands of Sean Wayland Tunes in pdf form</p>
+    <div class="feature-card">
+      <h3>📧 Mailing List</h3>
+      <p>Stay updated with the latest news and releases by joining the mailing list</p>
+      <a href="/mailing_list/signup" target="_blank" class="btn btn-primary">Sign Up</a>
+    </div>
 
-<div class="container" align="left">
- <a href="/return-all_charts/" target="blank"><button >Download lots of Sean Wayland pdfs</button></a>
-</div>
-
-<p>This link below has lots of Sean Wayland plugins. You can email me seanwayland at gmail for installation help</p>
-
-<div class="container" align="left">
-   <a href="/return-plugins/" target="blank"><button >Download lots of Sean Wayland plugins</button></a>
+    <div class="feature-card">
+      <h3>⚙️ Admin Panel</h3>
+      <p>Access the administrative dashboard to manage content and settings</p>
+      <a href="/admin" target="_blank" class="btn btn-primary">Admin</a>
+    </div>
   </div>
 
-
-<p>view performances performances calendar</p>
-<div class="container" align="left">
-    <a href="performances/view" target="_blank"><button>view gigs </button></a>
+  <div class="cta-section">
+    <h2>Support the Music</h2>
+    <p style="color: #666; font-size: 1.05rem;">Enjoy the music and plugins? Consider buying a coffee to support the work!</p>
+    <a href="https://www.buymeacoffee.com/seanwaylan9" target="_blank" class="btn btn-primary btn-lg">☕ Buy Me a Coffee</a>
+  </div>
 </div>
 
-<p>mailing list signup</p>
-<div class="container" align="left">
-    <a href="/mailing_list/signup" target="_blank"><button>sign up</button></a>
-</div>
-
-
-<p>admin</p>
-<div class="container" align="left">
-    <a href="/admin" target="_blank"><button>admin</button></a>
-</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 
 

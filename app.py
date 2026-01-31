@@ -488,6 +488,9 @@ def download_mailing_list():
 # =====================================================
 @app.route("/performances/view")
 def view_performances():
+    if not USE_DB:
+        return render_template("performances_view.html", performances=[])
+    
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT date, location, info, image_url FROM performances WHERE date >= NOW() ORDER BY date ASC")
